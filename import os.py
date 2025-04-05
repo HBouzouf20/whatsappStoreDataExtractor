@@ -9,14 +9,15 @@ from urllib.parse import urlparse
 
 # Set the folder where the JSON file is stored
 folder_path = "./json_data"  # Replace with your folder path
-json_file_path = os.path.join(folder_path, "data.json")
+json_file_path = os.path.join(folder_path, "data_opt.json")
 
+# Function to extract price from description
 def extract_price(description):
     if not isinstance(description, str):
         return "No description"
-
-    price_match = re.findall(r'~(\d+)dh~', description)
     
+    # Extract price between "~" symbols or "dh" for Moroccan Dirham
+    price_match = re.findall(r'~(\d+)dh~', description)
     if not price_match:
         price_match = re.findall(r'(\d+)dh', description)
     
@@ -31,11 +32,12 @@ all_products = []
 
 # Iterate over each catalog response
 for catalog_response in data:
-    product_catalog = catalog_response.get("data", {}).get("xwa_product_catalog_get_product_catalog", {}).get("product_catalog", {})
-    products = product_catalog.get("products", [])
+    catalog_name = catalog_response.get("name", "No Catalog Name")
+    products = catalog_response.get("products", [])
     
     for product in products:
         product_info = {
+            'catalog_name': catalog_name,
             'name': product.get('name', 'No Name'),
             'description': product.get('description', 'No Description'),
             'availability': product.get('product_availability', 'No Availability'),
@@ -43,33 +45,32 @@ for catalog_response in data:
             'url': product.get('url', 'No URL'),
         }
         
-        # Extract price
+        # Extract price from description
         price = extract_price(product.get('description', ''))
         product_info['price'] = price
         
         # Handle images
-        if 'media' in product and 'images' in product['media']:
-            images = product['media']['images']
-            if images:
-                image_url = images[0].get('original_image_url', '')
-                if image_url:
-                    image_name = os.path.basename(urlparse(image_url).path)
-                    image_path = os.path.join(folder_path, "images", image_name)
-                    
-                    # Download and save the image
-                    try:
-                        img_data = requests.get(image_url).content
-                        with open(image_path, 'wb') as img_file:
-                            img_file.write(img_data)
-                        product_info['image'] = image_name
-                    except requests.exceptions.RequestException as e:
-                        print(f"Error downloading image: {e}")
-                        product_info['image'] = "Error downloading image"
+        if 'image' in product:
+            image_url = product['image']
+            if image_url:
+                image_name = os.path.basename(urlparse(image_url).path)
+                image_path = os.path.join(folder_path, "images", image_name)
+                
+                # Download and save the image
+                try:
+                    img_data = requests.get(image_url).content
+                    os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                    with open(image_path, 'wb') as img_file:
+                        img_file.write(img_data)
+                    product_info['image'] = image_name
+                except requests.exceptions.RequestException as e:
+                    print(f"Error downloading image: {e}")
+                    product_info['image'] = "Error downloading image"
             else:
                 product_info['image'] = "No image"
         else:
             product_info['image'] = "No image"
-        
+
         # Add the product to the list
         all_products.append(product_info)
 
